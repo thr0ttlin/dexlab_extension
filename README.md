@@ -1,5 +1,5 @@
 <h1 align="center">
-    <img src="https://raw.githubusercontent.com/thr0ttlin/dexlab-extension/resources/icon.png" height="100px" width="100px">
+    <img src="https://raw.githubusercontent.com/thr0ttlin/dexlab_extension/main/resources/icon.png" height="100px" width="100px">
     </a> <br>DEXLab
 </h1>
 
