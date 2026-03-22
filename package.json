@@ -1,0 +1,57 @@
+{
+  "name": "dexlab",
+  "displayName": "DEXLab",
+  "description": "Build Java payloads, convert them to DEX, and disassemble with baksmali.",
+  "version": "1.0.0",
+  "icon": "resources/icon.png",
+  "publisher": "thr0ttlin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thr0ttlin/dexlab_extension.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "dexlab.createTemplate", "title": "DEXLab: Create template workspace" },
+      { "command": "dexlab.build", "title": "DEXLab: Build payload" },
+      { "command": "dexlab.clean", "title": "DEXLab: Clean build" },
+      { "command": "dexlab.downloadBaksmali", "title": "DEXLab: Download baksmali" },
+      { "command": "dexlab.disassemble", "title": "DEXLab: Disassemble dex" }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "dexlab.build",
+          "when": "resourceFilename == dexlab.config.json",
+          "group": "navigation"
+        },
+        {
+          "command": "dexlab.clean",
+          "when": "resourceFilename == dexlab.config.json",
+          "group": "navigation"
+        },
+        {
+          "command": "dexlab.disassemble",
+          "when": "resourceFilename == dexlab.config.json",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.8.0"
+  }
+}
