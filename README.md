@@ -175,7 +175,7 @@ All fields in `dexlab.config.json` are optional and fall back to sensible defaul
   "entryClass":        "payload.Payload",  // class to invoke
   "entryMethod":       "run",              // method to invoke
   "bundleSecret":      "<generated>",      // HMAC-SHA256 key - generated once per project
-  "deployPath":        "/sdcard/Android/data/com.thr0ttlin.dexrunner/files/DEXLab/",
+  "deployPath":        "/data/local/tmp/DEXLab/",
   "adbSerial":         ""                  // target device serial (empty = first connected)
 }
 ```
