@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'          # trigger version
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build & publish VSIX
