@@ -1,13 +1,17 @@
 {
   "name": "dexlab",
   "displayName": "DEXLab",
-  "description": "Build Java payloads, convert them to DEX, and disassemble with baksmali.",
-  "version": "1.0.0",
+  "description": "Build, bundle and deploy Android DEX payloads from VS Code",
+  "version": "1.1.0",
   "icon": "resources/icon.png",
   "publisher": "thr0ttlin",
+  "bugs": { "url": "https://github.com/thr0ttlin/dexlab_extension/issues" },
+  "homepage": "https://github.com/thr0ttlin/dexlab_extension#readme",
+  "author": "thr0ttlin",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/thr0ttlin/dexlab_extension.git"
+    "url": "git+https://github.com/thr0ttlin/dexlab_extension.git"
   },
   "engines": {
     "vscode": "^1.85.0"
@@ -17,34 +21,194 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "activationEvents": [
+      "onCommand:dexlab.createTemplate",
+      "onCommand:dexlab.createTemplateByTarget"
+    ],
     "commands": [
-      { "command": "dexlab.createTemplate", "title": "DEXLab: Create template workspace" },
-      { "command": "dexlab.build", "title": "DEXLab: Build payload" },
-      { "command": "dexlab.clean", "title": "DEXLab: Clean build" },
-      { "command": "dexlab.downloadBaksmali", "title": "DEXLab: Download baksmali" },
-      { "command": "dexlab.disassemble", "title": "DEXLab: Disassemble dex" }
+      {
+        "command": "dexlab.createTemplate",
+        "title": "DEXLab: Create Template Workspace"
+      },
+      {
+        "command": "dexlab.createTemplateByTarget",
+        "title": "DEXLab: Create Template Workspace from Target APK"
+      },
+      {
+        "command": "dexlab.buildAndRun",
+        "title": "DEXLab: Build and Run on Device"
+      },
+      {
+        "command": "dexlab.build",
+        "title": "DEXLab: Build"
+      },
+      {
+        "command": "dexlab.clean",
+        "title": "DEXLab: Clean"
+      },
+      {
+        "command": "dexlab.bundle",
+        "title": "DEXLab: Bundle (.dexs)"
+      },
+      {
+        "command": "dexlab.disassemble",
+        "title": "DEXLab: Disassemble DEX (baksmali)"
+      },
+      {
+        "command": "dexlab.prepareTarget",
+        "title": "DEXLab: Prepare Target (APK → target.jar)"
+      },
+      {
+        "command": "dexlab.deploy",
+        "title": "DEXLab: Deploy to Device (adb push + LOAD)"
+      },
+      {
+        "command": "dexlab.run",
+        "title": "DEXLab: Run on Device (broadcast)"
+      },
+      {
+        "command": "dexlab.setSecret",
+        "title": "DEXLab: Send Sign-Secret to DexRunner"
+      },
+      {
+        "command": "dexlab.installDexRunner",
+        "title": "DEXLab: Install / Update DexRunner on Device"
+      },
+      {
+        "command": "dexlab.downloadBaksmali",
+        "title": "DEXLab: Download baksmali"
+      },
+      {
+        "command": "dexlab.downloadDex2jar",
+        "title": "DEXLab: Download dex2jar"
+      }
     ],
     "menus": {
-      "explorer/context": [
+      "commandPalette": [
+        {
+          "command": "dexlab.createTemplate",
+          "when": "true"
+        },
+        {
+          "command": "dexlab.createTemplateByTarget",
+          "when": "true"
+        },
+        {
+          "command": "dexlab.buildAndRun",
+          "when": "false"
+        },
         {
           "command": "dexlab.build",
-          "when": "resourceFilename == dexlab.config.json",
-          "group": "navigation"
+          "when": "false"
         },
         {
           "command": "dexlab.clean",
-          "when": "resourceFilename == dexlab.config.json",
-          "group": "navigation"
+          "when": "false"
+        },
+        {
+          "command": "dexlab.bundle",
+          "when": "false"
         },
         {
           "command": "dexlab.disassemble",
-          "when": "resourceFilename == dexlab.config.json",
-          "group": "navigation"
+          "when": "false"
+        },
+        {
+          "command": "dexlab.prepareTarget",
+          "when": "false"
+        },
+        {
+          "command": "dexlab.deploy",
+          "when": "false"
+        },
+        {
+          "command": "dexlab.run",
+          "when": "false"
+        },
+        {
+          "command": "dexlab.setSecret",
+          "when": "false"
+        },
+        {
+          "command": "dexlab.installDexRunner",
+          "when": "false"
+        },
+        {
+          "command": "dexlab.downloadBaksmali",
+          "when": "false"
+        },
+        {
+          "command": "dexlab.downloadDex2jar",
+          "when": "false"
+        }
+      ],
+      "explorer/context": [
+        {
+          "submenu": "dexlab.submenu",
+          "when": "resourceFilename == 'dexlab.config.json'",
+          "group": "dexlab@1"
+        }
+      ],
+      "dexlab.submenu": [
+        {
+          "command": "dexlab.buildAndRun",
+          "group": "1_fast@1"
+        },
+        {
+          "command": "dexlab.build",
+          "group": "2_build@1"
+        },
+        {
+          "command": "dexlab.bundle",
+          "group": "2_build@2"
+        },
+        {
+          "command": "dexlab.clean",
+          "group": "2_build@3"
+        },
+        {
+          "command": "dexlab.disassemble",
+          "group": "3_analyze@1"
+        },
+        {
+          "command": "dexlab.prepareTarget",
+          "group": "3_analyze@2"
+        },
+        {
+          "command": "dexlab.deploy",
+          "group": "4_device@1"
+        },
+        {
+          "command": "dexlab.run",
+          "group": "4_device@2"
+        },
+        {
+          "command": "dexlab.setSecret",
+          "group": "4_device@3"
+        },
+        {
+          "command": "dexlab.installDexRunner",
+          "group": "4_device@4"
+        },
+        {
+          "command": "dexlab.downloadBaksmali",
+          "group": "5_tools@1"
+        },
+        {
+          "command": "dexlab.downloadDex2jar",
+          "group": "5_tools@2"
         }
       ]
-    }
+    },
+    "submenus": [
+      {
+        "id": "dexlab.submenu",
+        "label": "DEXLab"
+      }
+    ]
   },
   "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "vscode:prepublish": "npm run compile"
