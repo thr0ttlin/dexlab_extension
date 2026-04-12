@@ -1297,7 +1297,7 @@ async function createTemplate(targetApkPath: string | null) {
       baksmaliUrl:      DEFAULT_BAKSMALI_URL,
       dex2jarUrl:       DEFAULT_DEX2JAR_URL,
       targetApk:        targetApkPath ?? '',
-      deployPath:       '/storage/emulated/0/Android/data/com.thr0ttlin.dexrunner/files/DEXLab/',
+      deployPath:       '/data/local/tmp/DEXLab/',
       adbSerial:        '',
       namePOC:          folderName,
       authorPOC:        'thr0ttlin',

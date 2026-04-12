@@ -123,7 +123,7 @@ classes.dex
     │  DEXLab pack + HMAC-SHA256 sign
     ▼
 payload.dexs  (ZIP: config.json + *.dex)
-    │  adb push  ->  /storage/emulated/0/Android/data/com.thr0ttlin.dexrunner/files/DEXLab/
+    │  adb push  ->  /data/local/tmp/DEXLab/
     │  broadcast LOAD_BUNDLE
     │  broadcast RUN_BUNDLE
     ▼
