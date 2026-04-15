@@ -87,6 +87,7 @@ MyPOC/
 ├── README.md
 ├── .gitignore
 ├── libs/
+|   ├── dex-target/        <- dir with a target dex's
 │   └── target.jar         <- optional: classes from the target APK
 └── src/
     └── java/
@@ -139,8 +140,9 @@ A `.dexs` file is a ZIP archive:
 ```
 payload.dexs
 ├── config.json    <- namePOC, entryPoint, method, classes, dexes, date, signature
-├── classes.dex
-└── classes2.dex   <- present if multidex
+├── payload.dex    <- main payload (entryPoint class)
+├── classes.dex    <- target
+└── classes2.dex   <- target
 ```
 
 The `signature` field is HMAC-SHA256 over the other `config.json` fields using `bundleSecret` from your `dexlab.config.json`. DexRunner verifies this on load and shows a green or grey indicator in its UI.

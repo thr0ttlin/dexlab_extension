@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import { rename } from "fs/promises";
 import { promises as fsp } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -271,7 +272,7 @@ async function ensureBuildDirs(root: string): Promise<void> {
     fsp.mkdir(path.join(root, 'build', 'classes'),   { recursive: true }),
     fsp.mkdir(path.join(root, 'build', 'dex'),       { recursive: true }),
     fsp.mkdir(path.join(root, 'build'), { recursive: true }),
-    fsp.mkdir(path.join(root, 'build', 'tools'),     { recursive: true }),
+    fsp.mkdir(path.join(root, 'tools'),     { recursive: true }),
     fsp.mkdir(path.join(root, 'build', 'smali'),     { recursive: true }),
   ]);
 }
@@ -489,7 +490,7 @@ async function extractZip(
 // ---------------------------------------------------------------------------
 
 async function downloadBaksmali(root: string, cfg: ProjectConfig): Promise<string> {
-  const jar = path.join(root, 'build', 'tools', 'baksmali.jar');
+  const jar = path.join(root, 'tools', 'baksmali.jar');
   if (!(await exists(jar))) {
     output.appendLine(`Downloading baksmali from: ${cfg.baksmaliUrl}`);
     await downloadFile(cfg.baksmaliUrl, jar);
@@ -502,13 +503,13 @@ async function downloadBaksmali(root: string, cfg: ProjectConfig): Promise<strin
  * returns path to the d2j-dex2jar shell/bat script.
  */
 async function downloadAndResolveDex2jar(root: string, cfg: ProjectConfig): Promise<string> {
-  const toolsDir  = path.join(root, 'build', 'tools', 'dex2jar');
+  const toolsDir  = path.join(root, 'tools', 'dex2jar');
   const scriptExt = process.platform === 'win32' ? '.bat' : '.sh';
   const script    = path.join(toolsDir, `d2j-dex2jar${scriptExt}`);
 
   if (await exists(script)) return script;
 
-  const zipPath = path.join(root, 'build', 'tools', 'dex-tools.zip');
+  const zipPath = path.join(root, 'tools', 'dex-tools.zip');
   output.appendLine(`Downloading dex2jar from: ${cfg.dex2jarUrl}`);
   await downloadFile(cfg.dex2jarUrl, zipPath);
 
@@ -516,7 +517,7 @@ async function downloadAndResolveDex2jar(root: string, cfg: ProjectConfig): Prom
   await fsp.mkdir(toolsDir, { recursive: true });
 
   // The ZIP contains a top-level folder like "dex-tools-v2.4/" — flatten one level
-  const tmpDir = path.join(root, 'build', 'tools', 'dex2jar-tmp');
+  const tmpDir = path.join(root, 'tools', 'dex2jar-tmp');
   await fsp.mkdir(tmpDir, { recursive: true });
 
   await extractZip(zipPath, tmpDir, () => true, false);
@@ -573,7 +574,7 @@ async function compileJava(root: string, cfg: ProjectConfig): Promise<string> {
   const libsDir       = path.join(root, 'libs');
   const externalJars  = await collectFilesRecursive(libsDir, '.jar');
   const classesDir    = path.join(root, 'build', 'classes');
-  const toolsDir      = path.join(root, 'build', 'tools');
+  const toolsDir      = path.join(root, 'tools');
 
   await fsp.mkdir(classesDir, { recursive: true });
   await fsp.mkdir(toolsDir,   { recursive: true });
@@ -618,6 +619,7 @@ async function convertJarToDex(root: string, cfg: ProjectConfig, jarPath: string
   await fsp.mkdir(dexDir, { recursive: true });
 
   await runProcess(d8, ['--output', dexDir, '--classpath', androidJar, jarPath], root);
+  await rename(`${dexDir}/classes.dex`, `${dexDir}/payload.dex`);
   return dexDir;
 }
 
@@ -684,7 +686,10 @@ async function countClassesInDex(dexFile: string): Promise<number> {
 }
 
 function computeBundleSignature(meta: Omit<DexsBundleMeta, 'signature'>, secret: string): string {
-  const payload = JSON.stringify(meta, Object.keys(meta).sort());
+  // Sort keys alphabetically — must match BundleManager.buildSignaturePayload() on Android
+  const sorted: any = {};
+  for (const k of Object.keys(meta).sort()) sorted[k] = (meta as any)[k];
+  const payload = JSON.stringify(sorted);
   return crypto.createHmac('sha256', secret).update(payload).digest('hex');
 }
 
@@ -694,21 +699,31 @@ function computeBundleSignature(meta: Omit<DexsBundleMeta, 'signature'>, secret:
  *
  * Bundle layout:
  *   config.json
- *   classes.dex
- *   classes2.dex  (if multidex)
+ *   payload.dex
+ *   classes.dex   <- target
+ *   classes2.dex  <- target
  *   ...
  */
 async function packDexsBundle(root: string, cfg: ProjectConfig): Promise<string> {
   const dexDir       = path.join(root, 'build', 'dex');
+  const targetDexDir = path.join(root, 'libs', 'dex-target');
   const artifactsDir = path.join(root, 'build');
   await fsp.mkdir(artifactsDir, { recursive: true });
 
   const dexFiles = await collectFilesRecursive(dexDir, '.dex');
   if (!dexFiles.length) throw new Error(`No .dex files to bundle in: ${dexDir}`);
 
+  const targetDexFiles = await collectFilesRecursive(targetDexDir, '.dex');
+
   let totalClasses = 0;
   for (const dexFile of dexFiles) {
     totalClasses += await countClassesInDex(dexFile);
+  }
+
+  if (dexFiles.length > 0) {
+    for (const dexFile of targetDexFiles) {
+      totalClasses += await countClassesInDex(dexFile);
+    }
   }
 
   const entryFile  = path.basename(dexFiles[0]); // primary dex
@@ -728,7 +743,7 @@ async function packDexsBundle(root: string, cfg: ProjectConfig): Promise<string>
   const meta: DexsBundleMeta = { ...metaNoSig, signature };
 
   const bundlePath = path.join(artifactsDir, `${cfg.pkg}.dexs`);
-  await writeDexsZip(bundlePath, dexFiles, meta);
+  await writeDexsZip(bundlePath, dexFiles, targetDexFiles, meta);
 
   output.appendLine(`Bundle: ${bundlePath}`);
   output.appendLine(`  Classes: ${totalClasses}  DEX files: ${dexFiles.length}`);
@@ -743,6 +758,7 @@ async function packDexsBundle(root: string, cfg: ProjectConfig): Promise<string>
 async function writeDexsZip(
   dest: string,
   dexFiles: string[],
+  targetDexFiles: string[],
   meta: DexsBundleMeta,
 ): Promise<void> {
   const entries: Array<{ name: string; data: Buffer }> = [];
@@ -753,7 +769,16 @@ async function writeDexsZip(
     data: Buffer.from(JSON.stringify(meta, null, 2), 'utf8'),
   });
 
+  // payload DEX files
   for (const dexFile of dexFiles) {
+    entries.push({
+      name: path.basename(dexFile),
+      data: await fsp.readFile(dexFile),
+    });
+  }
+
+  // target DEX files
+  for (const dexFile of targetDexFiles) {
     entries.push({
       name: path.basename(dexFile),
       data: await fsp.readFile(dexFile),
@@ -852,7 +877,7 @@ function makeCrcTable(): Uint32Array {
 async function prepareTarget(root: string, cfg: ProjectConfig, apkPath: string): Promise<string> {
   output.appendLine(`Preparing target from: ${apkPath}`);
 
-  const tmpDir = path.join(root, 'build', 'tools', 'target-tmp');
+  const tmpDir = path.join(root, 'tools', 'target-tmp');
   await fsp.rm(tmpDir,  { recursive: true, force: true });
   await fsp.mkdir(tmpDir, { recursive: true });
 
@@ -866,7 +891,7 @@ async function prepareTarget(root: string, cfg: ProjectConfig, apkPath: string):
     const apkList = await extractZip(apkPath, tmpDir, n => n.endsWith('.apk'), false);
     output.appendLine(`  Found ${apkList.length} APK(s) in split package.`);
 
-    const dexTmp = path.join(tmpDir, 'dex');
+    const dexTmp = path.join(root, 'libs', 'dex-target');
     await fsp.mkdir(dexTmp, { recursive: true });
 
     for (const apk of apkList) {
@@ -876,7 +901,7 @@ async function prepareTarget(root: string, cfg: ProjectConfig, apkPath: string):
   } else {
     // Plain APK
     output.appendLine('Extracting DEX files from APK...');
-    const dexTmp = path.join(tmpDir, 'dex');
+    const dexTmp = path.join(root, 'libs', 'dex-target');
     await fsp.mkdir(dexTmp, { recursive: true });
     await extractZip(apkPath, dexTmp, n => n.endsWith('.dex'), true);
     dexFiles = await collectFilesRecursive(dexTmp, '.dex');
@@ -960,7 +985,7 @@ async function adbBroadcast(
 }
 
 // ---------------------------------------------------------------------------
-// find latest DexRunner APK download URL
+// GitHub release helper: find latest DexRunner APK download URL
 // ---------------------------------------------------------------------------
 
 async function fetchLatestDexRunnerApkUrl(): Promise<string> {
@@ -1021,7 +1046,7 @@ async function downloadBaksmaliCommand(uri?: vscode.Uri) {
   try {
     ensureOutputVisible();
     const ctx = await resolveProjectContext(uri);
-    await fsp.mkdir(path.join(ctx.root, 'build', 'tools'), { recursive: true });
+    await fsp.mkdir(path.join(ctx.root, 'tools'), { recursive: true });
     const jar = await downloadBaksmali(ctx.root, ctx.config);
     output.appendLine(`baksmali: ${jar}`);
     vscode.window.showInformationMessage('DEXLab: baksmali downloaded.');
@@ -1034,7 +1059,7 @@ async function downloadDex2jarCommand(uri?: vscode.Uri) {
   try {
     ensureOutputVisible();
     const ctx    = await resolveProjectContext(uri);
-    await fsp.mkdir(path.join(ctx.root, 'build', 'tools'), { recursive: true });
+    await fsp.mkdir(path.join(ctx.root, 'tools'), { recursive: true });
     const script = await downloadAndResolveDex2jar(ctx.root, ctx.config);
     output.appendLine(`dex2jar: ${script}`);
     vscode.window.showInformationMessage('DEXLab: dex2jar downloaded.');
@@ -1075,7 +1100,7 @@ async function prepareTargetCommand(uri?: vscode.Uri) {
 
     if (!(await exists(apkPath))) throw new Error(`Target package not found: ${apkPath}`);
 
-    await fsp.mkdir(path.join(ctx.root, 'build', 'tools'), { recursive: true });
+    await fsp.mkdir(path.join(ctx.root, 'tools'), { recursive: true });
     await prepareTarget(ctx.root, ctx.config, apkPath);
     vscode.window.showInformationMessage('DEXLab: target.jar ready in libs/.');
   } catch (err) {
@@ -1213,7 +1238,7 @@ async function installDexRunnerCommand(uri?: vscode.Uri) {
     const apkUrl = await fetchLatestDexRunnerApkUrl();
     output.appendLine(`Download URL: ${apkUrl}`);
 
-    const tmpApk = path.join(ctx.root, 'build', 'tools', 'dexrunner-latest.apk');
+    const tmpApk = path.join(ctx.root, 'tools', 'dexrunner-latest.apk');
     await fsp.mkdir(path.dirname(tmpApk), { recursive: true });
     await downloadFile(apkUrl, tmpApk);
     output.appendLine(`Downloaded: ${tmpApk}`);
@@ -1282,7 +1307,7 @@ async function createTemplate(targetApkPath: string | null) {
       fsp.mkdir(path.join(root, 'src', 'java', 'payload'), { recursive: true }),
       fsp.mkdir(path.join(root, 'libs'),                   { recursive: true }),
       fsp.mkdir(path.join(root, '.vscode'),                { recursive: true }),
-      fsp.mkdir(path.join(root, 'build', 'tools'),         { recursive: true }),
+      fsp.mkdir(path.join(root, 'tools'),         { recursive: true }),
     ]);
 
     const bundleSecret = generateSecret();
@@ -1318,7 +1343,7 @@ public class Payload {
      */
     public static void run(Context ctx) {
         Toast.makeText(ctx, "Hello From Dex", Toast.LENGTH_LONG).show();
-        
+
         /**
          * All output from System.out / System.err is captured by DexRunner's
          * Once the payload has executed, open the View Log (in DexRunner) and you will see the entries highlighted in purple.
@@ -1355,24 +1380,29 @@ Thumbs.db
       '- `dexlab.config.json` — project configuration',
       '- `src/java/payload/Payload.java` — entry point',
       '- `libs/` — optional dependencies (target.jar goes here)',
-      '- `build/artifacts/*.dexs` — packaged bundle',
+      '- `build/payload.dexs` — packaged bundle',
       '',
-      '## Context menu commands on `dexlab.config.json`',
+      '## Context menu commands on `dexlab.config.json` (submenu DEXLab)',
       '| Command | Action |',
       '|---------|--------|',
+      '| Build and Run on Device | Build a signed `.dexs` bundle and run on device |',
       '| Build | Compile Java → JAR → DEX |',
       '| Bundle | Pack DEX files into `.dexs` bundle |',
       '| Disassemble | Baksmali decompile build/dex |',
       '| Prepare Target | Convert APK to target.jar |',
       '| Deploy | ADB push + LOAD broadcast |',
       '| Run on Device | ADB RUN broadcast |',
+      '| Set Secret | Send Sign-Secret to DexRunner |',
       '| Install DexRunner | Download + install latest DexRunner APK |',
+      '| Download baksmali | Fetch baksmali JAR |',
+      '| Download dex2jar | Fetch dex2jar tools |',
       '| Clean | Remove build/ directory |',
       '',
       '## .dexs bundle format',
       'ZIP archive with `.dexs` extension containing:',
-      '- `config.json` — metadata + HMAC-SHA256 signature',
-      '- `classes.dex`, `classes2.dex`, … — compiled DEX files',
+      '- `config.json` - metadata + HMAC-SHA256 signature',
+      '- `payload.dex` - compiled DEX file',
+      '- `classes.dex`, `classes2.dex`, … - target DEX files',
       '',
       '## Signature verification',
       `The bundle is signed with HMAC-SHA256. Secret is stored in \`bundleSecret\` in ${CONFIG_FILE}.`,
