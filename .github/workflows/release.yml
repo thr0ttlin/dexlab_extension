@@ -47,6 +47,6 @@ jobs:
             ```bash
             code --install-extension dexlab-${{ github.ref_name }}.vsix
             ```
-            Or open VS Code → Extensions → `···` → *Install from VSIX…*
+            Or open VS Code -> Extensions -> `···` -> *Install from VSIX…*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
